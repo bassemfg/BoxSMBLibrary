@@ -43,7 +43,7 @@ namespace Utilities
             var session = new BoxJWTAuth(config);
             var userToken = session.UserToken(userId);
             boxClient = session.UserClient(userToken, userId);
-        }
+        } 
         private object GetFileOrFolderInfo(string fileId, string Type)
         {
 
