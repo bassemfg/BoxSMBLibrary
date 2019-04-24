@@ -39,7 +39,7 @@ namespace Utilities
                 config = BoxConfig.CreateFromJsonFile(fs);
             }
 
-            var userId = "898897637";
+            var userId = "<BoxUuserID>";
             var session = new BoxJWTAuth(config);
             var userToken = session.UserToken(userId);
             boxClient = session.UserClient(userToken, userId);
@@ -80,7 +80,6 @@ namespace Utilities
         {
             string fileId = null;
             Type = "folder";
-            // traverse folders already created
             var folderNames = path.Remove(0, 2).Split('/');
             folderNames = folderNames.Where((f) => !String.IsNullOrEmpty(f)).ToArray(); //get rid of leading empty entry in case of leading slash
             var folderNameList = folderNames.ToList();
@@ -225,6 +224,7 @@ namespace Utilities
                     BoxFile file=((BoxFile) GetFileOrFolderInfo(sourceId, itemType));
 
                     fileSystemEntry = new FileSystemEntry(path,file.Name,false,ulong.Parse( file.Size.ToString()),  DateTime.Parse(file.CreatedAt.ToString()), DateTime.Parse(file.ModifiedAt.ToString()), DateTime.Parse(file.ModifiedAt.ToString()),false,false, false);
+                    fileSystemEntry.id = sourceId;
                 }
 
                 if (itemType == "folder")
@@ -232,6 +232,7 @@ namespace Utilities
                     BoxFolder folder = ((BoxFolder)GetFileOrFolderInfo(sourceId, itemType));
 
                     fileSystemEntry = new FileSystemEntry(path, folder.Name,true, ulong.Parse(folder.Size.ToString()), DateTime.Parse(folder.CreatedAt.ToString()), DateTime.Parse(folder.ModifiedAt.ToString()), DateTime.Parse(folder.ModifiedAt.ToString()), false, false, false);
+                    fileSystemEntry.id = sourceId;
                 }
 
                 
@@ -245,111 +246,6 @@ namespace Utilities
             }
 
             return fileSystemEntry;
-        }
-
-        public FileSystemEntry CreateFile(string path)
-        {
-            FileSystemEntry fileSystemEntry = null;
-
-            try
-            {
-                
-            }
-            catch (Exception e)
-            {
-                if (e.InnerException != null)
-                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
-                else
-                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
-            }
-
-            return fileSystemEntry;
-        }
-
-        public FileSystemEntry CreateDirectory(string path)
-        {
-            FileSystemEntry fileSystemEntry = null;
-
-            try
-            {
-
-            }
-            catch (Exception e)
-            {
-                if (e.InnerException != null)
-                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
-                else
-                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
-            }
-
-            return fileSystemEntry;
-        }
-
-        public List<FileSystemEntry> ListEntriesInDirectory(string path)
-        {
-            List<FileSystemEntry> fileSystemEntry =null;
-
-            try
-            {
-
-            }
-            catch (Exception e)
-            {
-                if (e.InnerException != null)
-                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
-                else
-                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
-            }
-
-            return fileSystemEntry;
-        }
-
-        public Stream OpenFile(string path, FileMode mode, FileAccess access, FileShare share, FileOptions options)
-        {
-            Stream stream = null; 
-            try
-            {
-
-            }
-            catch (Exception e)
-            {
-                if (e.InnerException != null)
-                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
-                else
-                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
-            }
-
-            return stream;
-        }
-
-        public void SetAttributes(string path, bool? isHidden, bool? isReadonly, bool? isArchived)
-        {
-            try
-            {
-
-            }
-            catch (Exception e)
-            {
-                if (e.InnerException != null)
-                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
-                else
-                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
-            }
-        }
-
-        public void SetDates(string path, DateTime? creationDT, DateTime? lastWriteDT, DateTime? lastAccessDT)
-        {
-            try
-            {
-
-            }
-            catch (Exception e)
-            {
-                if (e.InnerException != null)
-                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
-                else
-                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
-            }
         }
 
 
@@ -374,36 +270,211 @@ namespace Utilities
             return OpenFile(path, mode, access, share, FileOptions.None);
         }
 
+        public Stream OpenFile(string path, FileMode mode, FileAccess access, FileShare share, FileOptions options)
+        {
+            Stream stream = null;
+            try
+            {
+                string itemType = null;
+                string sourceId = GetFileOrFolderIDfromPath(path, ref itemType);
+
+                var fileDownload = boxClient.FilesManager.DownloadStreamAsync(sourceId);
+                fileDownload.Wait();
+                stream = fileDownload.Result;
+            }
+            catch (Exception e)
+            {
+                if (e.InnerException != null)
+                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
+                else
+                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
+            }
+
+            return stream;
+        }
+
         public void CopyFile(string sourcePath, string destinationPath)
         {
-            const int bufferLength = 1024 * 1024;
-            FileSystemEntry sourceFile = GetEntry(sourcePath);
-            FileSystemEntry destinationFile = GetEntry(destinationPath);
-            if (sourceFile == null | sourceFile.IsDirectory)
+            try
             {
-                throw new FileNotFoundException();
+                //const int bufferLength = 1024 * 1024;
+                FileSystemEntry sourceFile = GetEntry(sourcePath);
+                FileSystemEntry destinationFile = GetEntry(destinationPath);
+                if (sourceFile == null | sourceFile.IsDirectory)
+                {
+                    throw new FileNotFoundException();
+                }
+
+                if (destinationFile != null && !destinationFile.IsDirectory)
+                {
+                    throw new ArgumentException("Destination cannot be a directory");
+                }
+
+                if (destinationFile == null)
+                {
+                    throw new ArgumentException("Destination not specified");
+                }
+                var fileRequest = new BoxFileRequest();
+                fileRequest.Id = sourceFile.id;
+                fileRequest.Parent = new BoxRequestEntity() { Id = destinationFile.id, Type = BoxType.folder };
+                var copyFile = boxClient.FilesManager.CopyAsync(fileRequest);
+                copyFile.Wait();
+            }
+            catch (Exception e)
+            {
+                if (e.InnerException != null)
+                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
+                else
+                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
             }
 
-            if (destinationFile != null && destinationFile.IsDirectory)
+            //Stream sourceStream = OpenFile(sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, FileOptions.SequentialScan);
+            //Stream destinationStream = OpenFile(destinationPath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite, FileOptions.None);
+            //while (sourceStream.Position < sourceStream.Length)
+            //{
+            //    int readSize = (int)Math.Max(bufferLength, sourceStream.Length - sourceStream.Position);
+            //    byte[] buffer = new byte[readSize];
+            //    sourceStream.Read(buffer, 0, buffer.Length);
+            //    destinationStream.Write(buffer, 0, buffer.Length);
+            //}
+            //sourceStream.Close();
+            //destinationStream.Close();
+        }
+
+        public void SetAttributes(string path, bool? isHidden, bool? isReadonly, bool? isArchived)
+        {
+            try
             {
-                throw new ArgumentException("Destination cannot be a directory");
+                //no need to do anything here since those attirbutes don't apply to Box
+            }
+            catch (Exception e)
+            {
+                if (e.InnerException != null)
+                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
+                else
+                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
+            }
+        }
+
+        public void SetDates(string path, DateTime? creationDT, DateTime? lastWriteDT, DateTime? lastAccessDT)
+        {
+            try
+            {
+                //no need to do anything here since those attirbutes should not be changed manually
+            }
+            catch (Exception e)
+            {
+                if (e.InnerException != null)
+                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
+                else
+                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
+            }
+        }
+        
+        public FileSystemEntry CreateDirectory(string path)
+        {
+            FileSystemEntry fileSystemEntry = null;
+            string itemType = null;
+            string parentPath = "";// + RemoveLastFolderFromPath(path);
+            string parentFolderId =GetFileOrFolderIDfromPath(parentPath, ref itemType);
+
+            try
+            {
+                var boxEntityRequest = new BoxRequestEntity() { Id = parentFolderId, Type = BoxType.folder };
+                BoxFolderRequest folderRequest = new BoxFolderRequest() { Parent = boxEntityRequest };
+                var createDirectory = boxClient.FoldersManager.CreateAsync(folderRequest);
+                createDirectory.Wait();
+                fileSystemEntry = GetEntry(path);
+            }
+            catch (Exception e)
+            {
+                if (e.InnerException != null)
+                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
+                else
+                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
             }
 
-            if (destinationFile == null)
+            return fileSystemEntry;
+        }
+        private string RemoveLastFolderFromPath(string path)
+        {
+            string result = null;
+            DirectoryInfo parentDir = Directory.GetParent(path);
+            // or possibly
+            //DirectoryInfo parentDir = Directory.GetParent(path.EndsWith("\\") ? path : string.Concat(path, "\\"));
+
+            // The result is available here
+            result = parentDir.Parent.FullName;
+                               
+            return result;
+        }
+
+        public FileSystemEntry CreateFile(string path)
+        {
+            FileSystemEntry fileSystemEntry = null;
+            try
             {
-                destinationFile = CreateFile(destinationPath);
+                // creating an empty file is meaningless in box
+                // can be updated later to reflect a file upload but the source file path needs to be passed somehow 
+                // to the function without changing its signature
             }
-            Stream sourceStream = OpenFile(sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, FileOptions.SequentialScan);
-            Stream destinationStream = OpenFile(destinationPath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite, FileOptions.None);
-            while (sourceStream.Position < sourceStream.Length)
+            catch (Exception e)
             {
-                int readSize = (int)Math.Max(bufferLength, sourceStream.Length - sourceStream.Position);
-                byte[] buffer = new byte[readSize];
-                sourceStream.Read(buffer, 0, buffer.Length);
-                destinationStream.Write(buffer, 0, buffer.Length);
+                if (e.InnerException != null)
+                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
+                else
+                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
             }
-            sourceStream.Close();
-            destinationStream.Close();
+
+            return fileSystemEntry;
+        }
+        public List<FileSystemEntry> ListEntriesInDirectory(string path)
+        {
+            List<FileSystemEntry> fileSystemEntryList =null;
+
+            try
+            {
+                string itemType = null;
+
+                string currFolderId = GetFileOrFolderIDfromPath(path, ref itemType);
+
+                var folderInfo = boxClient.FoldersManager.GetFolderItemsAsync(currFolderId, 100);
+
+                folderInfo.Wait();
+                BoxCollection<BoxItem> collAll = new BoxCollection<BoxItem>();
+                collAll.Entries = new List<BoxItem>();
+                collAll.Entries.AddRange(folderInfo.Result.Entries);
+
+                if (folderInfo.Result.TotalCount > 100)
+                {
+                    for (int i = 1; i <= folderInfo.Result.TotalCount / 100 + 1; i++)
+                    {
+
+                        var folderItems = boxClient.FoldersManager.GetFolderItemsAsync(currFolderId, i * 100);
+                        folderItems.Wait();
+                        if (folderItems.Result.Entries.Count > 0)
+                            collAll.Entries.AddRange(folderItems.Result.Entries);
+                    }
+
+                }
+
+                fileSystemEntryList = new List<FileSystemEntry>();
+
+                foreach (BoxItem item in collAll.Entries)
+                {
+                    fileSystemEntryList.Add(GetEntry(path + "\\" + item.Name));
+                }
+
+            }
+            catch (Exception e)
+            {
+                if (e.InnerException != null)
+                    EventLog.WriteEntry("Box SMB", e.Message + " Inner Exception: " + e.InnerException.Message, EventLogEntryType.Error);
+                else
+                    EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
+            }
+
+            return fileSystemEntryList;
         }
 
         public virtual bool Exists(string path)

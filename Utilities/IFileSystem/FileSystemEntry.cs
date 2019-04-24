@@ -20,6 +20,7 @@ namespace Utilities
         public bool IsHidden;
         public bool IsReadonly;
         public bool IsArchived;
+        public string id;
 
         public FileSystemEntry(string fullName, string name, bool isDirectory, ulong size, DateTime creationTime, DateTime lastWriteTime, DateTime lastAccessTime, bool isHidden, bool isReadonly, bool isArchived)
         {
