@@ -39,11 +39,12 @@ namespace Utilities
                 config = BoxConfig.CreateFromJsonFile(fs);
             }
 
-            var userId = "<BoxUuserID>";
+            var userId = "3420422604";
             var session = new BoxJWTAuth(config);
             var userToken = session.UserToken(userId);
             boxClient = session.UserClient(userToken, userId);
         } 
+
         private object GetFileOrFolderInfo(string fileId, string Type)
         {
 
@@ -78,18 +79,19 @@ namespace Utilities
 
         private string GetFileOrFolderIDfromPath(string path, ref string Type)
         {
-            string fileId = null;
             Type = "folder";
-            var folderNames = path.Remove(0, 2).Split('/');
+            var folderNames = path.Remove(0, 2).Split('\\');
+            if (folderNames == null) return "0";
             folderNames = folderNames.Where((f) => !String.IsNullOrEmpty(f)).ToArray(); //get rid of leading empty entry in case of leading slash
             var folderNameList = folderNames.ToList();
             //folderNameList.RemoveAt(folderNameList.Count - 1);
-
+            BoxCollection<BoxItem> collAll = null;
             folderNames = folderNameList.ToArray();
 
             //Task<BoxFolder> folderInfo=null;
             //BoxFolder x = null;
             var currFolderId = "0"; //the root folder is always "0"
+            
             foreach (var folderName in folderNames)
             {
                 try
@@ -98,7 +100,7 @@ namespace Utilities
                     var folderInfo = boxClient.FoldersManager.GetFolderItemsAsync(currFolderId, 100);
 
                     folderInfo.Wait();
-                    BoxCollection<BoxItem> collAll = new BoxCollection<BoxItem>();
+                    collAll = new BoxCollection<BoxItem>();
                     collAll.Entries = new List<BoxItem>();
                     collAll.Entries.AddRange(folderInfo.Result.Entries);
 
@@ -125,6 +127,10 @@ namespace Utilities
                     {
                         //get fileid instead of folderid
                         Type = "file";
+
+                        var foundFile =
+                        collAll.Entries.OfType<BoxFile>().First((f) => f.Name == folderName);
+                        currFolderId = foundFile.Id;
                     }
                     catch (Exception ex)
                     {
@@ -135,9 +141,7 @@ namespace Utilities
 
             }
 
-            fileId = currFolderId;
-
-            return fileId;
+            return currFolderId;
         }
 
         
@@ -251,7 +255,7 @@ namespace Utilities
 
         public List<FileSystemEntry> ListEntriesInRootDirectory()
         {
-            return ListEntriesInDirectory(@"\");
+            return ListEntriesInDirectory(@"\\");
         }
 
         public virtual List<KeyValuePair<string, ulong>> ListDataStreams(string path)
@@ -328,17 +332,6 @@ namespace Utilities
                     EventLog.WriteEntry("Box SMB", e.Message, EventLogEntryType.Error);
             }
 
-            //Stream sourceStream = OpenFile(sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, FileOptions.SequentialScan);
-            //Stream destinationStream = OpenFile(destinationPath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite, FileOptions.None);
-            //while (sourceStream.Position < sourceStream.Length)
-            //{
-            //    int readSize = (int)Math.Max(bufferLength, sourceStream.Length - sourceStream.Position);
-            //    byte[] buffer = new byte[readSize];
-            //    sourceStream.Read(buffer, 0, buffer.Length);
-            //    destinationStream.Write(buffer, 0, buffer.Length);
-            //}
-            //sourceStream.Close();
-            //destinationStream.Close();
         }
 
         public void SetAttributes(string path, bool? isHidden, bool? isReadonly, bool? isArchived)
