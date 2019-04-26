@@ -44,19 +44,38 @@ namespace Utilities.Tests
         [TestMethod()]
         public void OpenFileTest()
         {
-            Assert.Fail();
+
+            FileSystem boxFS = new FileSystem();
+
+            if (boxFS.OpenFile(@"\\MM\All Purge Errors - raw.xlsx",System.IO.FileMode.Open,System.IO.FileAccess.Read,System.IO.FileShare.Read) == null)
+                Assert.Fail();
         }
 
         [TestMethod()]
         public void CopyFileTest()
         {
-            Assert.Fail();
+            FileSystem boxFS = new FileSystem();
+
+            try
+            {
+                boxFS.CopyFile(@"\\MM\All Purge Errors - raw.xlsx", @"\\My Box Notes");
+            }
+            catch { Assert.Fail(); }
+
         }
 
         [TestMethod()]
         public void DeleteTest()
         {
-            Assert.Fail();
+            
+        FileSystem boxFS = new FileSystem();
+
+            try
+            {
+                boxFS.Delete(@"\\My Box Notes\All Purge Errors - raw.xlsx");
+            }
+            catch { Assert.Fail(); }
+
         }
 
         [TestMethod()]
